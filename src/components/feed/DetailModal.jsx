@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase, pad, fmtDate, initials, avatarColor, STATUS_MAP, POINTS } from '../../lib/supabase.js'
+import { notifyUser } from '../../lib/telegram.js'
 import Avatar from '../common/Avatar.jsx'
 
 export default function DetailModal({ postId, posts, user, onClose, onUpdate, showToast, updateUser }) {
@@ -44,6 +45,10 @@ export default function DetailModal({ postId, posts, user, onClose, onUpdate, sh
       text: commentText.trim(),
     })
     if (!error) {
+      // 🔔 Notify post author
+      if (post && post.author_id && post.author_id !== user.empId) {
+        await notifyUser(supabase, post.author_id, '💬 Новый комментарий', `${user.name}: ${commentText.trim().slice(0, 80)}`, 'comment')
+      }
       setCommentText('')
       loadComments()
       // Points for comment
