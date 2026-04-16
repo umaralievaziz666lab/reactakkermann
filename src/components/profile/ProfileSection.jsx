@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase, lvlInfo, LEVELS, fmtDate, pad } from '../../lib/supabase.js'
 import Avatar from '../common/Avatar.jsx'
 import LoadingDots from '../common/LoadingDots.jsx'
 
 export default function ProfileSection({ user, updateUser, isDark, toggleDark, onLogout, showToast, clearProfileBadge }) {
   const [leaderboard, setLeaderboard] = useState([])
-  const [tasks, setTasks] = useState([])
   const [achievements, setAchievements] = useState([])
   const [myPosts, setMyPosts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('stats') // stats | leaderboard | achievements | training
+  const [tab, setTab] = useState('stats')
   const [showReferral, setShowReferral] = useState(false)
 
   useEffect(() => {
@@ -48,10 +47,10 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
   }
 
   const lv = lvlInfo(user?.points || 0)
-  const nextLv = LEVELS[LEVELS.findIndex(l => l.cls === lv.cls) + 1]
+  const lvIndex = LEVELS.findIndex(l => l.cls === lv.cls)
+  const nextLv = LEVELS[lvIndex + 1]
   const progress = nextLv ? Math.round(((user?.points - lv.min) / (lv.max - lv.min)) * 100) : 100
   const myRank = leaderboard.findIndex(u => u.id === user?.empId) + 1
-
   const ideas = myPosts.filter(p => p.type === 'idea').length
   const risks = myPosts.filter(p => p.type === 'risk').length
   const totalLikes = myPosts.reduce((s, p) => s + (p.likes || 0), 0)
@@ -62,14 +61,9 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
       {/* Profile Header */}
       <div style={{ background: 'var(--navy)', borderBottom: '3px solid var(--red)', padding: '20px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-          <div style={{ position: 'relative' }}>
-            <Avatar name={user?.name} src={user?.profilePic} size={72} />
-            {user?.isTrained && (
-              <div style={{ position: 'absolute', bottom: 2, right: 2, width: 22, height: 22, borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="11" height="11" fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
-              </div>
-            )}
-          </div>
+          {/* Avatar with upload */}
+          <AvatarUpload user={user} updateUser={updateUser} showToast={showToast} />
+
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#e8e7e3' }}>{user?.name}</div>
             <div style={{ fontSize: 13, color: 'rgba(232,231,227,0.6)', marginTop: 2 }}>{user?.department}</div>
@@ -79,6 +73,7 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
               </span>
             </div>
           </div>
+
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 28, fontWeight: 800, color: '#f53d2d' }}>{user?.points || 0}</div>
             <div style={{ fontSize: 10, color: 'rgba(232,231,227,0.5)', textTransform: 'uppercase' }}>ТОП</div>
@@ -91,13 +86,10 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'rgba(232,231,227,0.5)', marginBottom: 4 }}>
               <span>{lv.label}</span>
-              <span>{nextLv.label}</span>
+              <span>{nextLv.min - (user?.points || 0)} ТОП до {nextLv.label}</span>
             </div>
             <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${progress}%`, borderRadius: 999, background: 'linear-gradient(90deg,#f53d2d,#c42b1c)', transition: 'width .5s' }} />
-            </div>
-            <div style={{ fontSize: 10, color: 'rgba(232,231,227,0.4)', marginTop: 3, textAlign: 'center' }}>
-              {nextLv.min - (user?.points || 0)} ТОП до следующего уровня
             </div>
           </div>
         )}
@@ -148,21 +140,140 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
   )
 }
 
+// ── AVATAR UPLOAD ─────────────────────────────────────────────────────────────
+function AvatarUpload({ user, updateUser, showToast }) {
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef(null)
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) { showToast('Файл слишком большой (макс. 5МБ)', 'error'); return }
+    if (!file.type.startsWith('image/')) { showToast('Только изображения', 'error'); return }
+
+    setUploading(true)
+    try {
+      // Resize image before upload
+      const resized = await resizeImage(file, 400, 400)
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `avatars/${user.empId}.${ext}`
+
+      const { error: upErr } = await supabase.storage.from('media').upload(path, resized, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+
+      const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(path)
+      const urlWithCache = `${publicUrl}?t=${Date.now()}`
+
+      await supabase.from('users').update({ profile_pic: urlWithCache }).eq('id', user.empId)
+      updateUser({ profilePic: urlWithCache })
+      showToast('✅ Фото обновлено!')
+    } catch (err) {
+      showToast('Ошибка загрузки: ' + err.message, 'error')
+    }
+    setUploading(false)
+  }
+
+  async function removePic() {
+    if (!confirm('Удалить фото профиля?')) return
+    await supabase.from('users').update({ profile_pic: null }).eq('id', user.empId)
+    updateUser({ profilePic: null })
+    showToast('Фото удалено')
+  }
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <div style={{ position: 'relative', width: 72, height: 72 }}>
+        {user?.profilePic
+          ? <img src={user.profilePic} alt="avatar" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '3px solid rgba(255,255,255,0.2)' }} />
+          : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#f53d2d', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: '#fff', border: '3px solid rgba(255,255,255,0.2)' }}>
+              {(user?.name || '?').split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase()}
+            </div>
+        }
+
+        {/* Trained badge */}
+        {user?.isTrained && (
+          <div style={{ position: 'absolute', bottom: 2, right: 2, width: 20, height: 20, borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="10" height="10" fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+        )}
+
+        {/* Upload overlay */}
+        <div
+          onClick={() => !uploading && inputRef.current?.click()}
+          style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            cursor: uploading ? 'wait' : 'pointer',
+            opacity: 0, transition: 'opacity .2s',
+          }}
+          onMouseOver={e => e.currentTarget.style.opacity = '1'}
+          onMouseOut={e => e.currentTarget.style.opacity = '0'}
+        >
+          {uploading
+            ? <div className="anim-spin" style={{ width: 20, height: 20, border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%' }} />
+            : <>
+                <svg width="18" height="18" fill="none" stroke="#fff" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" strokeWidth="2"/></svg>
+                <span style={{ fontSize: 8, color: '#fff', marginTop: 2 }}>Изменить</span>
+              </>
+          }
+        </div>
+      </div>
+
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+
+      {/* Remove button */}
+      {user?.profilePic && (
+        <button onClick={removePic} style={{
+          position: 'absolute', top: -4, right: -4,
+          width: 20, height: 20, borderRadius: '50%',
+          background: '#ef4444', border: '2px solid #0f1c2c',
+          color: '#fff', fontSize: 12, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          lineHeight: 1,
+        }}>×</button>
+      )}
+    </div>
+  )
+}
+
+// Resize image using canvas
+function resizeImage(file, maxW, maxH) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => resolve(blob), file.type, 0.85)
+    }
+    img.src = url
+  })
+}
+
+// ── STATS TAB ─────────────────────────────────────────────────────────────────
 function StatsTab({ user, isDark, toggleDark, onLogout, showReferral, showToast, updateUser }) {
   const [editMode, setEditMode] = useState(false)
   const [phone, setPhone] = useState(user?.phone || '')
   const [email, setEmail] = useState(user?.email || '')
+  const [saving, setSaving] = useState(false)
 
   async function saveProfile() {
+    setSaving(true)
     await supabase.from('users').update({ phone, email }).eq('id', user.empId)
     updateUser({ phone, email })
     setEditMode(false)
-    showToast('Профиль обновлён')
+    showToast('✅ Профиль обновлён')
+    setSaving(false)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Profile info */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--bd)', borderRadius: 4, overflow: 'hidden' }}>
         <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t2)', textTransform: 'uppercase' }}>Контактные данные</span>
@@ -178,13 +289,18 @@ function StatsTab({ user, isDark, toggleDark, onLogout, showReferral, showToast,
             <>
               <div style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11, color: 'var(--t3)', display: 'block', marginBottom: 3 }}>Телефон</label>
-                <input value={phone} onChange={e => setPhone(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--bd)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--t1)', fontSize: 13, outline: 'none' }} />
+                <input value={phone} onChange={e => setPhone(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--bd)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--t1)', fontSize: 13, outline: 'none' }} />
               </div>
               <div style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 11, color: 'var(--t3)', display: 'block', marginBottom: 3 }}>Email</label>
-                <input value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--bd)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--t1)', fontSize: 13, outline: 'none' }} />
+                <input value={email} onChange={e => setEmail(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--bd)', borderRadius: 4, background: 'var(--bg3)', color: 'var(--t1)', fontSize: 13, outline: 'none' }} />
               </div>
-              <button onClick={saveProfile} style={{ width: '100%', padding: 9, borderRadius: 4, border: 'none', background: 'var(--red)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Сохранить</button>
+              <button onClick={saveProfile} disabled={saving}
+                style={{ width: '100%', padding: 9, borderRadius: 4, border: 'none', background: 'var(--red)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: saving ? .6 : 1 }}>
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </button>
             </>
           ) : (
             <>
@@ -196,7 +312,6 @@ function StatsTab({ user, isDark, toggleDark, onLogout, showReferral, showToast,
         </div>
       </div>
 
-      {/* Actions */}
       {[
         { label: '🎁 Реферальная программа', action: showReferral },
         { label: isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема', action: toggleDark },
@@ -223,15 +338,9 @@ function InfoRow({ label, value }) {
   )
 }
 
+// ── LEADERBOARD TAB ───────────────────────────────────────────────────────────
 function LeaderboardTab({ leaderboard, user }) {
-  const rankStyle = (rank) => {
-    if (rank === 0) return { background: 'rgba(251,191,36,.15)', borderColor: 'rgba(251,191,36,.4)' }
-    if (rank === 1) return { background: 'rgba(156,163,175,.12)', borderColor: 'rgba(156,163,175,.35)' }
-    if (rank === 2) return { background: 'rgba(249,115,22,.12)', borderColor: 'rgba(249,115,22,.3)' }
-    return {}
-  }
   const medals = ['🥇','🥈','🥉']
-
   return (
     <div>
       {leaderboard.map((u, i) => {
@@ -240,20 +349,31 @@ function LeaderboardTab({ leaderboard, user }) {
         return (
           <div key={u.id} style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 14px', borderRadius: 4, border: '1px solid var(--bd)',
-            marginBottom: 6, background: 'var(--bg3)',
-            borderLeft: isMe ? '3px solid var(--red)' : '3px solid var(--bd)',
-            ...rankStyle(i),
+            padding: '10px 14px', borderRadius: 4,
+            border: `1px solid ${isMe ? 'var(--red)' : 'var(--bd)'}`,
+            marginBottom: 6,
+            background: i === 0 ? 'rgba(251,191,36,.08)' : i === 1 ? 'rgba(156,163,175,.08)' : i === 2 ? 'rgba(249,115,22,.08)' : 'var(--bg3)',
+            borderLeft: isMe ? '3px solid var(--red)' : '3px solid transparent',
           }}>
-            <div style={{ fontSize: i < 3 ? 22 : 14, fontWeight: 700, color: 'var(--t3)', width: 28, textAlign: 'center' }}>
+            <div style={{ fontSize: i < 3 ? 22 : 14, fontWeight: 700, color: 'var(--t3)', width: 28, textAlign: 'center', flexShrink: 0 }}>
               {i < 3 ? medals[i] : `#${i+1}`}
             </div>
-            <Avatar name={u.name} src={u.profile_pic} size={36} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? 'var(--red)' : 'var(--t1)' }}>{u.name} {isMe && '(Вы)'}</div>
-              <div style={{ fontSize: 11, color: 'var(--t3)' }}>{u.department} · <span className={`level-badge ${lv.cls}`} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999 }}>{lv.label}</span></div>
+            {u.profile_pic
+              ? <img src={u.profile_pic} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              : <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f53d2d', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
+                  {(u.name||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}
+                </div>
+            }
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: isMe ? 'var(--red)' : 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {u.name} {isMe && '(Вы)'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--t3)' }}>{u.department}</div>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--red)' }}>{u.points || 0}</div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--red)' }}>{u.points || 0}</div>
+              <span className={`level-badge ${lv.cls}`} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 999, display: 'inline-block' }}>{lv.label}</span>
+            </div>
           </div>
         )
       })}
@@ -261,6 +381,7 @@ function LeaderboardTab({ leaderboard, user }) {
   )
 }
 
+// ── ACHIEVEMENTS TAB ──────────────────────────────────────────────────────────
 function AchievementsTab({ achievements, user, myPosts }) {
   const completed = user?.completedAchievements || []
   const myLikes = myPosts.reduce((s, p) => s + (p.likes || 0), 0)
@@ -273,49 +394,61 @@ function AchievementsTab({ achievements, user, myPosts }) {
     if (ach.target_type === 'risks') val = myPosts.filter(p => p.type === 'risk').length
     if (ach.target_type === 'likes') val = myLikes
     if (ach.target_type === 'points') val = user?.points || 0
-    return Math.min(100, Math.round((val / target) * 100))
+    return { pct: Math.min(100, Math.round((val / target) * 100)), val, target }
   }
+
+  const done = achievements.filter(a => completed.includes(a.id))
+  const notDone = achievements.filter(a => !completed.includes(a.id))
 
   return (
     <div>
-      {achievements.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--t3)' }}>Достижения загружаются…</div>
-      ) : achievements.map(ach => {
-        const done = completed.includes(ach.id)
-        const prog = done ? 100 : getProgress(ach)
+      {done.length > 0 && (
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>
+          ✅ Выполнено ({done.length})
+        </div>
+      )}
+      {[...notDone, ...done].map(ach => {
+        const isDone = completed.includes(ach.id)
+        const { pct, val, target } = getProgress(ach)
         return (
           <div key={ach.id} style={{
             display: 'flex', alignItems: 'center', gap: 12,
-            padding: '12px 14px', borderRadius: 4, border: '1px solid var(--bd)',
-            marginBottom: 7, background: 'var(--bg3)',
-            opacity: done ? 1 : 0.8,
+            padding: '12px 14px', borderRadius: 4,
+            border: `1px solid ${isDone ? 'rgba(34,197,94,.3)' : 'var(--bd)'}`,
+            marginBottom: 7,
+            background: isDone ? 'rgba(34,197,94,.05)' : 'var(--bg3)',
           }}>
-            <div style={{ fontSize: 28, width: 36, textAlign: 'center' }}>{done ? (ach.icon || '🏅') : '🔒'}</div>
-            <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 28, width: 36, textAlign: 'center', flexShrink: 0 }}>
+              {isDone ? (ach.icon || '🏅') : '🔒'}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: done ? 'var(--t1)' : 'var(--t3)' }}>{ach.title}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--acc)' }}>+{ach.points} ТОП</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isDone ? 'var(--t1)' : 'var(--t2)' }}>{ach.title}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--acc)', flexShrink: 0 }}>+{ach.points} ТОП</div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 5 }}>{ach.description}</div>
+              {ach.description && <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 5 }}>{ach.description}</div>}
               <div style={{ height: 4, borderRadius: 999, background: 'var(--bd)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${prog}%`, borderRadius: 999, background: done ? '#22c55e' : 'linear-gradient(90deg,#f53d2d,#c42b1c)', transition: 'width .5s' }} />
+                <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: isDone ? '#22c55e' : 'linear-gradient(90deg,#f53d2d,#c42b1c)', transition: 'width .5s' }} />
               </div>
-              <div style={{ fontSize: 10, color: 'var(--t4)', marginTop: 2 }}>{done ? '✅ Выполнено' : `${prog}%`}</div>
+              <div style={{ fontSize: 10, color: 'var(--t4)', marginTop: 2 }}>
+                {isDone ? '✅ Выполнено' : `${val} / ${target} (${pct}%)`}
+              </div>
             </div>
           </div>
         )
       })}
+      {achievements.length === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--t3)' }}>Достижения не настроены</div>}
     </div>
   )
 }
 
+// ── TRAINING TAB ──────────────────────────────────────────────────────────────
 function TrainingTab({ user, onComplete }) {
   const [answers, setAnswers] = useState({})
-  const [submitted, setSubmitted] = useState(false)
 
   if (user?.isTrained) return (
     <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-      <div style={{ fontSize: 48, marginBottom: 12 }}>🎓</div>
+      <div style={{ fontSize: 56, marginBottom: 12 }}>🎓</div>
       <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t1)' }}>Тренинг пройден!</div>
       <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 6 }}>Вы успешно прошли обучение по системе безопасности</div>
     </div>
@@ -324,51 +457,69 @@ function TrainingTab({ user, onComplete }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--bd)', borderRadius: 4, padding: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 10 }}>📚 Инструкция по системе</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)', marginBottom: 10 }}>📚 Инструкция</div>
         <div style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.7 }}>
-          <p><strong>💡 Идея</strong> — предложение по улучшению рабочих процессов, условий труда или безопасности.</p>
-          <p><strong>⚠️ Риск</strong> — обнаруженная опасность или нарушение требований безопасности.</p>
-          <p>За каждую публикацию начисляются баллы <strong>ТОП</strong>. Копите баллы и повышайте уровень!</p>
+          <p style={{ marginBottom: 8 }}><strong>💡 Идея</strong> — предложение по улучшению рабочих процессов или условий труда.</p>
+          <p style={{ marginBottom: 8 }}><strong>⚠️ Риск</strong> — обнаруженная опасность или нарушение требований безопасности.</p>
+          <p><strong>🏆 ТОП баллы</strong> — за каждую публикацию начисляются баллы. Копите и повышайте уровень!</p>
         </div>
       </div>
 
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--bd)', borderRadius: 4, padding: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginBottom: 10 }}>📝 Тест</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>📝 Тест (+40 ТОП)</div>
 
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 13, color: 'var(--t1)', marginBottom: 8 }}>1. Какой тип заявки для предложения улучшений?</div>
-          {['risk','idea'].map(v => (
-            <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', cursor: 'pointer', marginBottom: 6 }}>
-              <input type="radio" name="tq1" value={v} checked={answers.tq1 === v} onChange={() => setAnswers(a => ({ ...a, tq1: v }))} />
-              {v === 'risk' ? '⚠️ Риск' : '💡 Идея'}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--t1)', fontWeight: 600, marginBottom: 8 }}>
+            1. Какой тип заявки для предложения улучшений?
+          </div>
+          {[['risk','⚠️ Риск'], ['idea','💡 Идея']].map(([v, l]) => (
+            <label key={v} onClick={() => setAnswers(a => ({ ...a, tq1: v }))} style={{
+              display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+              color: 'var(--t2)', cursor: 'pointer', marginBottom: 8,
+              padding: '10px 12px', borderRadius: 8,
+              background: answers.tq1 === v ? 'rgba(245,61,45,.08)' : 'var(--bg3)',
+              border: `1.5px solid ${answers.tq1 === v ? 'var(--red)' : 'var(--bd)'}`,
+              transition: '.2s',
+            }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${answers.tq1 === v ? 'var(--red)' : 'var(--bd)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {answers.tq1 === v && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)' }} />}
+              </div>
+              {l}
             </label>
           ))}
         </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 13, color: 'var(--t1)', marginBottom: 8 }}>2. Где посмотреть баллы и уровень?</div>
-          {['feed','profile'].map(v => (
-            <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', cursor: 'pointer', marginBottom: 6 }}>
-              <input type="radio" name="tq2" value={v} checked={answers.tq2 === v} onChange={() => setAnswers(a => ({ ...a, tq2: v }))} />
-              {v === 'feed' ? '📋 Лента' : '👤 Профиль'}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--t1)', fontWeight: 600, marginBottom: 8 }}>
+            2. Где посмотреть баллы и уровень?
+          </div>
+          {[['feed','📋 Лента'], ['profile','👤 Профиль']].map(([v, l]) => (
+            <label key={v} onClick={() => setAnswers(a => ({ ...a, tq2: v }))} style={{
+              display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+              color: 'var(--t2)', cursor: 'pointer', marginBottom: 8,
+              padding: '10px 12px', borderRadius: 8,
+              background: answers.tq2 === v ? 'rgba(245,61,45,.08)' : 'var(--bg3)',
+              border: `1.5px solid ${answers.tq2 === v ? 'var(--red)' : 'var(--bd)'}`,
+              transition: '.2s',
+            }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${answers.tq2 === v ? 'var(--red)' : 'var(--bd)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {answers.tq2 === v && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)' }} />}
+              </div>
+              {l}
             </label>
           ))}
         </div>
 
-        <button
-          onClick={() => { setSubmitted(true); onComplete(answers) }}
-          disabled={!answers.tq1 || !answers.tq2}
-          style={{
-            width: '100%', padding: 11, borderRadius: 4, border: 'none',
-            background: 'var(--red)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-            opacity: (!answers.tq1 || !answers.tq2) ? .5 : 1,
-          }}
-        >Завершить тест +40 ТОП</button>
+        <button onClick={() => onComplete(answers)} disabled={!answers.tq1 || !answers.tq2}
+          style={{ width: '100%', padding: 13, borderRadius: 4, border: 'none', background: 'var(--red)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', opacity: (!answers.tq1 || !answers.tq2) ? .5 : 1, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '.06em', textTransform: 'uppercase' }}>
+          ✅ Завершить тест и получить +40 ТОП
+        </button>
       </div>
     </div>
   )
 }
 
+// ── REFERRAL MODAL ────────────────────────────────────────────────────────────
 function ReferralModal({ user, onClose, showToast }) {
   const refCode = `REF_${user?.empId}`
 
@@ -388,8 +539,8 @@ function ReferralModal({ user, onClose, showToast }) {
       <div className="slide-up" style={{ background: 'var(--bg2)', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 440, padding: 24, borderTop: '3px solid var(--red)' }}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 48, marginBottom: 8 }}>🎁</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t1)' }}>Пригласи коллегу — получи ТОП!</div>
-          <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 6 }}>За каждого коллегу по твоему коду — <strong style={{ color: 'var(--acc)' }}>50 ТОП</strong></div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t1)' }}>Пригласи коллегу!</div>
+          <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 6 }}>За каждого коллегу — <strong style={{ color: 'var(--acc)' }}>+50 ТОП</strong></div>
         </div>
         <div style={{ background: 'var(--bg3)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--t3)', textTransform: 'uppercase', marginBottom: 6 }}>Твой реферальный код</div>
