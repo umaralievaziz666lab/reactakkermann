@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, pad, fmtDate, initials, avatarColor, STATUS_MAP, PAGE_SIZE } from '../../lib/supabase.js'
 import LoadingDots from '../common/LoadingDots.jsx'
+import PullToRefresh from '../common/PullToRefresh.jsx'
+import SkeletonCard from '../common/SkeletonCard.jsx'
 import FeedCard from './FeedCard.jsx'
 import DetailModal from './DetailModal.jsx'
 
@@ -131,6 +133,7 @@ export default function FeedSection({ user, showToast, updateUser }) {
   const children = depts.filter(d => d.parent_id)
 
   return (
+    <PullToRefresh onRefresh={() => loadPosts(true)}>
     <div onScroll={handleScroll} style={{ minHeight: '100%' }}>
       {/* Header */}
       <div style={{
@@ -222,7 +225,7 @@ export default function FeedSection({ user, showToast, updateUser }) {
       {/* Feed list */}
       <div style={{ padding: '8px 8px', paddingBottom: 'calc(74px + env(safe-area-inset-bottom, 0px))' }}>
         {loading ? (
-          <LoadingDots />
+          <>{[1,2,3,4].map(i => <SkeletonCard key={i} />)}</>
         ) : filteredPosts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--t3)' }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📋</div>
@@ -256,6 +259,7 @@ export default function FeedSection({ user, showToast, updateUser }) {
         />
       )}
     </div>
+    </PullToRefresh>
   )
 }
 
