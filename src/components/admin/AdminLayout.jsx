@@ -8,6 +8,7 @@ import AdminDepts from './AdminDepts.jsx'
 import AdminNews from './AdminNews.jsx'
 import AdminAchievements from './AdminAchievements.jsx'
 import DeadlineCalendar from './DeadlineCalendar.jsx'
+import AdminShop from './AdminShop.jsx'
 import AdminBell from './AdminBell.jsx'
 
 const ALL_PAGES = [
@@ -18,6 +19,7 @@ const ALL_PAGES = [
   { id:'news',         label:'Новости',       icon:'📰', permission:'publish_news' },
   { id:'achievements', label:'Достижения',    icon:'🏅', permission:'manage_achievements' },
   { id:'calendar',     label:'Дедлайны',      icon:'📅', permission:null },
+  { id:'shop',          label:'Магазин',       icon:'🏪', permission:null },
 ]
 
 export default function AdminLayout({ adminUser, onLogout }) {
@@ -197,9 +199,10 @@ export default function AdminLayout({ adminUser, onLogout }) {
           {page==='news'         && can(role,'publish_news')        && <AdminNews adminUser={adminUser} showToast={showToast} />}
           {page==='achievements' && can(role,'manage_achievements') && <AdminAchievements showToast={showToast} />}
           {page==='calendar'     && <DeadlineCalendar showToast={showToast} />}
+          {page==='shop'          && <AdminShop adminUser={adminUser} showToast={showToast} />}
 
           {/* Access denied */}
-          {!['dashboard','requests','calendar'].includes(page) && !pages.find(p=>p.id===page) && (
+          {!['dashboard','requests','calendar','shop'].includes(page) && !pages.find(p=>p.id===page) && (
             <div style={{ textAlign:'center', padding:'80px 20px' }}>
               <div style={{ fontSize:64, marginBottom:16 }}>🔒</div>
               <div style={{ fontSize:20, fontWeight:800, color:'#0f1c2c', marginBottom:8 }}>Нет доступа</div>
