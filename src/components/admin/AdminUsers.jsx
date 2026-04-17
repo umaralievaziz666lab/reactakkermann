@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase, lvlInfo, fmtDate } from '../../lib/supabase.js'
+import UserReport from './UserReport.jsx'
+import { notifyNews } from '../../lib/telegram.js'
 import LoadingDots from '../common/LoadingDots.jsx'
 
 // ─── USERS ───────────────────────────────────────────────────────────────────
@@ -11,6 +13,7 @@ export function AdminUsers({ adminUser, showToast }) { // named export for re-us
   const [editRole, setEditRole] = useState('')
   const [editPoints, setEditPoints] = useState('')
   const [saving, setSaving] = useState(false)
+  const [reportUserId, setReportUserId] = useState(null)
 
   useEffect(() => { loadUsers() }, [])
 
@@ -113,11 +116,15 @@ export function AdminUsers({ adminUser, showToast }) { // named export for re-us
             </div>
 
             <button onClick={saveUser} disabled={saving} style={btnStyle}>{saving ? 'Сохранение…' : '✅ Сохранить'}</button>
+            <button onClick={() => setReportUserId(selected.id)} style={{ ...btnStyle, background: '#f2f1ee', color: '#0f1c2c', border: '1px solid #d1cfc9', marginBottom: 8 }}>📊 Отчёт по сотруднику</button>
             {adminUser.role === 'admin' && (
               <button onClick={() => deleteUser(selected.id)} style={{ ...btnStyle, background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca' }}>🗑️ Удалить</button>
             )}
           </div>
         </div>
+      )}
+      {reportUserId && (
+        <UserReport userId={reportUserId} onClose={() => setReportUserId(null)} />
       )}
     </div>
   )
@@ -237,7 +244,7 @@ export function AdminNews({ adminUser, showToast }) {
         user_id: u.id, title: `📢 ${form.title}`, message: form.content.slice(0, 100),
         post_id: null, type: 'news', read: false, date: new Date().toISOString(),
       }))
-      await supabase.from('notifications').insert(notifs)
+      await supabase.from('notifications').insert(notifs) // In-app done via notifyNews
     }
 
     showToast(`✅ Новость опубликована, отправлено уведомлений: ${targetUsers?.length || 0}`)
