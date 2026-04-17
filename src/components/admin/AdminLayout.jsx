@@ -164,7 +164,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
       )}
 
       {/* ── MAIN ── */}
-      <div style={{ marginLeft: !isMobile ? sideW : 0, flex:1, minHeight:'100vh', display:'flex', flexDirection:'column', transition:'margin .25s ease' }}>
+      <div style={{ marginLeft: !isMobile ? sideW : 0, flex:1, height:'100vh', display:'flex', flexDirection:'column', transition:'margin .25s ease', overflow:'hidden' }}>
 
         {/* Topbar */}
         <div style={{ background:'#0f1c2c', borderBottom:'3px solid #f53d2d', padding:'0 16px', height:52, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:40, flexShrink:0 }}>
@@ -189,7 +189,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
         </div>
 
         {/* Content */}
-        <div style={{ padding:20, flex:1, overflowY:'auto', overflowX:'hidden' }}>
+        <div style={{ padding:20, flex:1, overflowY:'auto', overflowX:'hidden', height:'calc(100vh - 52px)' }}>
           {page==='dashboard'    && <AdminDashboard showToast={showToast} onPageChange={setPage} adminUser={adminUser} />}
           {page==='requests'     && <AdminRequests adminUser={adminUser} showToast={showToast} onBadgeUpdate={loadBadge} />}
           {page==='users'        && can(role,'manage_users')        && <AdminUsers adminUser={adminUser} showToast={showToast} />}
