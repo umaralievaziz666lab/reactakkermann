@@ -140,7 +140,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
 
         {/* Content */}
         <div style={{ padding:20 }}>
-          {page === 'dashboard'    && <AdminDashboard showToast={showToast} onPageChange={setPage} />}
+          {page === 'dashboard' && <AdminDashboard showToast={showToast} onPageChange={setPage} adminUser={adminUser} />}
           {page === 'requests'     && <AdminRequests adminUser={adminUser} showToast={showToast} onBadgeUpdate={loadBadge} />}
           {page === 'users'        && can(role,'manage_users')        && <AdminUsers adminUser={adminUser} showToast={showToast} />}
           {page === 'depts'        && can(role,'manage_departments')  && <AdminDepts showToast={showToast} />}
