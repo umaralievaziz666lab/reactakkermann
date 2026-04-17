@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase, fmtDate } from '../../lib/supabase.js'
 import LoadingDots from '../common/LoadingDots.jsx'
 
@@ -12,16 +12,10 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
   const [notifs, setNotifs] = useState([])
   const [archived, setArchived] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('unread') // unread | all | archived
-  const [deleting, setDeleting] = useState(null)
+  const [tab, setTab] = useState('unread')
 
-  useEffect(() => {
-    if (isActive) loadNotifs()
-  }, [isActive])
-
-  useEffect(() => {
-    loadNotifs()
-  }, [])
+  useEffect(() => { if (isActive) loadNotifs() }, [isActive])
+  useEffect(() => { loadNotifs() }, [])
 
   async function loadNotifs() {
     if (!user) return
@@ -32,47 +26,35 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
       .eq('user_id', user.empId)
       .order('date', { ascending: false })
       .limit(100)
-
     const all = data || []
     setNotifs(all.filter(n => !n.archived))
     setArchived(all.filter(n => n.archived))
-
-    // Отмечаем как прочитанные
-    await supabase.from('notifications')
-      .update({ read: true })
-      .eq('user_id', user.empId)
-      .eq('read', false)
+    await supabase.from('notifications').update({ read: true }).eq('user_id', user.empId).eq('read', false)
     onBadgeUpdate(0)
     setLoading(false)
   }
 
   async function archiveNotif(id) {
-    setDeleting(id)
     await supabase.from('notifications').update({ archived: true, read: true }).eq('id', id)
-    setNotifs(prev => prev.filter(n => n.id !== id))
-    const { data } = await supabase.from('notifications').select('*').eq('id', id).single()
-    if (data) setArchived(prev => [data, ...prev])
-    setDeleting(null)
+    const n = notifs.find(x => x.id === id)
+    setNotifs(prev => prev.filter(x => x.id !== id))
+    if (n) setArchived(prev => [{ ...n, archived: true }, ...prev])
   }
 
   async function archiveAll() {
-    if (!notifs.length) return
     const ids = notifs.filter(n => n.read).map(n => n.id)
-    if (!ids.length) { showToast('Сначала прочитайте уведомления', 'error'); return }
+    if (!ids.length) { showToast('Нет прочитанных уведомлений', 'error'); return }
     await supabase.from('notifications').update({ archived: true }).in('id', ids)
     const moved = notifs.filter(n => ids.includes(n.id))
     setNotifs(prev => prev.filter(n => !ids.includes(n.id)))
     setArchived(prev => [...moved, ...prev])
-    showToast(`✅ Архивировано ${ids.length} уведомлений`)
+    showToast(`✅ Архивировано ${ids.length}`)
   }
 
   async function unarchiveNotif(id) {
     await supabase.from('notifications').update({ archived: false }).eq('id', id)
     const n = archived.find(x => x.id === id)
-    if (n) {
-      setArchived(prev => prev.filter(x => x.id !== id))
-      setNotifs(prev => [{ ...n, archived: false }, ...prev])
-    }
+    if (n) { setArchived(prev => prev.filter(x => x.id !== id)); setNotifs(prev => [{ ...n, archived: false }, ...prev]) }
   }
 
   async function deleteNotif(id) {
@@ -82,7 +64,6 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
   }
 
   async function deleteAllArchived() {
-    if (!archived.length) return
     if (!confirm('Удалить все архивные уведомления?')) return
     await supabase.from('notifications').delete().eq('user_id', user.empId).eq('archived', true)
     setArchived([])
@@ -90,11 +71,10 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
   }
 
   const unread = notifs.filter(n => !n.read)
-  const displayNotifs = tab === 'unread' ? notifs : tab === 'all' ? notifs : archived
+  const displayNotifs = tab === 'archived' ? archived : notifs
 
   return (
     <div style={{ paddingBottom: 'calc(74px + env(safe-area-inset-bottom,0px))', minHeight: '100%' }}>
-
       {/* Header */}
       <div style={{ background: 'var(--navy)', borderBottom: '3px solid var(--red)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -102,20 +82,18 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
             🔔 Уведомления
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {tab !== 'archived' && notifs.filter(n=>n.read).length > 0 && (
+            {tab !== 'archived' && notifs.filter(n => n.read).length > 0 && (
               <button onClick={archiveAll} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.08)', color: '#e8e7e3', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                📦 Архивировать прочитанные
+                📦 В архив
               </button>
             )}
             {tab === 'archived' && archived.length > 0 && (
               <button onClick={deleteAllArchived} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(239,68,68,.3)', background: 'rgba(239,68,68,.1)', color: '#fca5a5', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                🗑️ Очистить архив
+                🗑️ Очистить
               </button>
             )}
           </div>
         </div>
-
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: 6 }}>
           {[
             { id: 'unread', label: `🔔 Новые${unread.length > 0 ? ` (${unread.length})` : ''}` },
@@ -132,30 +110,19 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ padding: 12 }}>
         {loading ? <LoadingDots /> : displayNotifs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--t3)' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>
-              {tab === 'archived' ? '📦' : '🔕'}
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>
-              {tab === 'archived' ? 'Архив пуст' : 'Уведомлений нет'}
-            </div>
-            <div style={{ fontSize: 12, marginTop: 4, color: 'var(--t4)' }}>
-              {tab === 'unread' ? 'Все уведомления прочитаны' : ''}
-            </div>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>{tab === 'archived' ? '📦' : '🔕'}</div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{tab === 'archived' ? 'Архив пуст' : 'Уведомлений нет'}</div>
           </div>
         ) : displayNotifs.map(n => (
-          <NotifItem
-            key={n.id}
-            notif={n}
+          <SwipeableNotif
+            key={n.id} notif={n}
             isArchived={tab === 'archived'}
-            isDeleting={deleting === n.id}
             onArchive={() => archiveNotif(n.id)}
             onUnarchive={() => unarchiveNotif(n.id)}
             onDelete={() => deleteNotif(n.id)}
-            onGoToFeed={goToFeed}
           />
         ))}
       </div>
@@ -163,81 +130,125 @@ export default function NotifSection({ user, onBadgeUpdate, showToast, goToFeed,
   )
 }
 
-function NotifItem({ notif: n, isArchived, isDeleting, onArchive, onUnarchive, onDelete, onGoToFeed }) {
-  const [showActions, setShowActions] = useState(false)
+// ── SWIPEABLE NOTIFICATION ────────────────────────────────────────────────────
+function SwipeableNotif({ notif: n, isArchived, onArchive, onUnarchive, onDelete }) {
+  const [swipeX, setSwipeX] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  const startXRef = useRef(0)
+  const startYRef = useRef(0)
+  const isHorizRef = useRef(null)
+  const THRESHOLD = 80
+
+  function handleTouchStart(e) {
+    startXRef.current = e.touches[0].clientX
+    startYRef.current = e.touches[0].clientY
+    isHorizRef.current = null
+    setSwiping(true)
+  }
+
+  function handleTouchMove(e) {
+    if (!swiping) return
+    const dx = e.touches[0].clientX - startXRef.current
+    const dy = Math.abs(e.touches[0].clientY - startYRef.current)
+
+    // Determine direction once
+    if (isHorizRef.current === null) {
+      isHorizRef.current = Math.abs(dx) > dy
+    }
+    if (!isHorizRef.current) return
+
+    e.preventDefault()
+    setSwipeX(dx)
+  }
+
+  function handleTouchEnd() {
+    setSwiping(false)
+    if (Math.abs(swipeX) > THRESHOLD) {
+      // Swipe right = archive/unarchive, swipe left = delete
+      setDismissed(true)
+      setTimeout(() => {
+        if (swipeX > 0) isArchived ? onUnarchive() : onArchive()
+        else onDelete()
+      }, 250)
+    } else {
+      setSwipeX(0)
+    }
+  }
+
+  const actionBg = swipeX > 0
+    ? (isArchived ? '#3b82f6' : '#22c55e')
+    : '#ef4444'
+  const actionIcon = swipeX > 0
+    ? (isArchived ? '🔔' : '📦')
+    : '🗑️'
+  const actionLabel = swipeX > 0
+    ? (isArchived ? 'Вернуть' : 'Архив')
+    : 'Удалить'
+  const progress = Math.min(Math.abs(swipeX) / THRESHOLD, 1)
 
   return (
     <div style={{
-      background: 'var(--bg2)',
-      border: `1px solid ${!n.read && !isArchived ? 'rgba(245,61,45,.25)' : 'var(--bd)'}`,
-      borderLeft: `3px solid ${!n.read && !isArchived ? 'var(--red)' : isArchived ? 'var(--bd)' : 'transparent'}`,
-      borderRadius: 10, marginBottom: 8,
-      opacity: isDeleting ? 0.5 : isArchived ? 0.75 : 1,
-      transition: 'opacity .2s',
+      position: 'relative', marginBottom: 8, borderRadius: 10, overflow: 'hidden',
+      height: dismissed ? 0 : 'auto',
+      opacity: dismissed ? 0 : 1,
+      transition: dismissed ? 'all .25s ease' : 'none',
     }}>
-      <div style={{ display: 'flex', gap: 10, padding: '12px 12px 12px 14px', alignItems: 'flex-start' }}>
-        {/* Icon */}
-        <div style={{
-          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: n.type === 'risk1' ? 'rgba(239,68,68,.12)' : n.type === 'achievement' ? 'rgba(251,191,36,.12)' : 'rgba(245,61,45,.08)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-        }}>
-          {TYPE_ICONS[n.type] || '🔔'}
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginBottom: 2 }}>{n.title}</div>
-          {n.message && (
-            <div style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.5, marginBottom: 3 }}>{n.message}</div>
-          )}
-          <div style={{ fontSize: 10, color: 'var(--t4)' }}>{fmtDate(n.date)}</div>
-        </div>
-
-        {/* Actions button */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <button onClick={() => setShowActions(!showActions)}
-            style={{ background: 'none', border: 'none', color: 'var(--t4)', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, fontSize: 18, lineHeight: 1 }}>
-            ⋯
-          </button>
-
-          {showActions && (
-            <>
-              <div onClick={() => setShowActions(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
-              <div style={{
-                position: 'absolute', right: 0, top: '100%', zIndex: 20,
-                background: 'var(--bg2)', border: '1px solid var(--bd)',
-                borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,.2)',
-                overflow: 'hidden', minWidth: 160,
-              }}>
-                {!isArchived ? (
-                  <ActionBtn icon="📦" label="Архивировать" onClick={() => { setShowActions(false); onArchive() }} />
-                ) : (
-                  <ActionBtn icon="🔔" label="Вернуть" onClick={() => { setShowActions(false); onUnarchive() }} />
-                )}
-                <ActionBtn icon="🗑️" label="Удалить" onClick={() => { setShowActions(false); onDelete() }} danger />
-              </div>
-            </>
-          )}
+      {/* Background action */}
+      <div style={{
+        position: 'absolute', inset: 0, borderRadius: 10,
+        background: actionBg,
+        display: 'flex', alignItems: 'center',
+        justifyContent: swipeX > 0 ? 'flex-start' : 'flex-end',
+        padding: '0 20px',
+        opacity: Math.min(progress * 1.5, 1),
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: 20, transform: `scale(${0.7 + progress * 0.5})`, transition: 'transform .1s' }}>{actionIcon}</span>
+          <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: '.05em' }}>{actionLabel}</span>
         </div>
       </div>
-    </div>
-  )
-}
 
-function ActionBtn({ icon, label, onClick, danger }) {
-  return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      width: '100%', padding: '10px 14px',
-      background: 'none', border: 'none', cursor: 'pointer',
-      fontSize: 13, fontWeight: 600,
-      color: danger ? '#ef4444' : 'var(--t1)',
-      textAlign: 'left',
-    }}
-      onMouseOver={e => e.currentTarget.style.background = 'var(--bg3)'}
-      onMouseOut={e => e.currentTarget.style.background = ''}>
-      <span>{icon}</span> {label}
-    </button>
+      {/* Notification card */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          position: 'relative', zIndex: 1,
+          background: 'var(--bg2)',
+          border: `1px solid ${!n.read && !isArchived ? 'rgba(245,61,45,.25)' : 'var(--bd)'}`,
+          borderLeft: `3px solid ${!n.read && !isArchived ? 'var(--red)' : isArchived ? 'var(--bd)' : 'transparent'}`,
+          borderRadius: 10, padding: '12px 14px',
+          transform: `translateX(${swipeX}px)`,
+          transition: swiping ? 'none' : 'transform .3s cubic-bezier(.32,.72,0,1)',
+          opacity: isArchived ? 0.75 : 1,
+          userSelect: 'none',
+          touchAction: 'pan-y',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: n.type === 'risk1' ? 'rgba(239,68,68,.12)' : n.type === 'achievement' ? 'rgba(251,191,36,.12)' : 'rgba(245,61,45,.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+          }}>
+            {TYPE_ICONS[n.type] || '🔔'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginBottom: 2 }}>{n.title}</div>
+            {n.message && <div style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.5, marginBottom: 3 }}>{n.message}</div>}
+            <div style={{ fontSize: 10, color: 'var(--t4)' }}>{fmtDate(n.date)}</div>
+          </div>
+        </div>
+
+        {/* Swipe hint for first unread */}
+        {!n.read && !isArchived && (
+          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', opacity: 0.25, fontSize: 14 }}>
+            ‹›
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
