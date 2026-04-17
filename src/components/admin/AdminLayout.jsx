@@ -131,7 +131,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
             </span>
           </div>
 
-          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             {/* Role pill in topbar */}
             <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:3, background:`${rColor}22`, color:rColor, border:`1px solid ${rColor}44`, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:'.04em' }}>
               {roleIcon(role)} {ROLES[role]||role}
@@ -139,11 +139,12 @@ export default function AdminLayout({ adminUser, onLogout }) {
             <span style={{ fontSize:11, color:'rgba(232,231,227,.4)' }}>
               {new Date().toLocaleDateString('ru', { day:'2-digit', month:'short', year:'numeric' })}
             </span>
+            <AdminBell adminUser={adminUser} onOpenRequest={(id) => { setBellRequestId(id) }} />
           </div>
         </div>
 
-        {/* Content */}
-        <div style={{ padding:20 }}>
+        {/* Content - scrollable */}
+        <div style={{ padding:20, overflowY:'auto', height:'calc(100vh - 52px)' }}>
           {page === 'dashboard' && <AdminDashboard showToast={showToast} onPageChange={setPage} adminUser={adminUser} />}
           {page === 'requests'     && <AdminRequests adminUser={adminUser} showToast={showToast} onBadgeUpdate={loadBadge} />}
           {page === 'users'        && can(role,'manage_users')        && <AdminUsers adminUser={adminUser} showToast={showToast} />}
