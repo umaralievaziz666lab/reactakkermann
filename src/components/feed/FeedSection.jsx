@@ -8,6 +8,8 @@ import DetailModal from './DetailModal.jsx'
 
 export default function FeedSection({ user, showToast, updateUser }) {
   const [tab, setTab] = useState('all') // all | my | assigned
+  const TABS = ['all', 'my', 'assigned']
+  const swipeStartRef = useRef(null)
   const [posts, setPosts] = useState([])
   const [likedPosts, setLikedPosts] = useState(new Set())
   const [loading, setLoading] = useState(true)
@@ -134,7 +136,21 @@ export default function FeedSection({ user, showToast, updateUser }) {
 
   return (
     <PullToRefresh onRefresh={() => loadPosts(true)}>
-    <div onScroll={handleScroll} style={{ minHeight: '100%' }}>
+    <div
+      onScroll={handleScroll}
+      onTouchStart={e => { swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+      onTouchEnd={e => {
+        if (!swipeStartRef.current) return
+        const dx = e.changedTouches[0].clientX - swipeStartRef.current.x
+        const dy = Math.abs(e.changedTouches[0].clientY - swipeStartRef.current.y)
+        swipeStartRef.current = null
+        if (Math.abs(dx) > 60 && dy < 80) {
+          const cur = TABS.indexOf(tab)
+          const next = dx < 0 ? Math.min(cur + 1, TABS.length - 1) : Math.max(cur - 1, 0)
+          if (next !== cur) setTab(TABS[next])
+        }
+      }}
+      style={{ minHeight: '100%' }}>
       {/* Header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 60,
