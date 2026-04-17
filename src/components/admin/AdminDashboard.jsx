@@ -68,6 +68,12 @@ export default function AdminDashboard({ showToast, onPageChange, adminUser }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <WeeklyReportButton showToast={showToast} adminUser={adminUser} />
+        <SmartRemindersButton showToast={showToast} />
+      </div>
+
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
         {[
@@ -226,6 +232,92 @@ function Level1Alert() {
           <span style={{ fontSize: 11, color: '#991b1b' }}>{fmtDate(r.date||r.created_at)}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+
+// ── WEEKLY REPORT BUTTON ──────────────────────────────────────────────────────
+function WeeklyReportButton({ showToast, adminUser }) {
+  const [sending, setSending] = useState(false)
+  const [lastSent, setLastSent] = useState(localStorage.getItem('last_weekly_report'))
+
+  async function send() {
+    setSending(true)
+    try {
+      const res = await fetch('/api/weekly-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: '' }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        const now = new Date().toLocaleString('ru')
+        localStorage.setItem('last_weekly_report', now)
+        setLastSent(now)
+        showToast(`✅ Отчёт отправлен ${data.sent} руководителям!`)
+      } else {
+        showToast('Ошибка: ' + (data.error || 'неизвестно'), 'error')
+      }
+    } catch (e) { showToast('Ошибка: ' + e.message, 'error') }
+    setSending(false)
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #d1cfc9', borderRadius: 3, padding: '12px 16px', flex: 1, minWidth: 200 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f1c2c', marginBottom: 4 }}>📊 Еженедельный отчёт</div>
+      <div style={{ fontSize: 11, color: '#5a7080', marginBottom: 8 }}>
+        Отправить сводку за неделю всем менеджерам в Telegram
+        {lastSent && <div style={{ marginTop: 2, color: '#8fa0ae' }}>Последний: {lastSent}</div>}
+      </div>
+      <button onClick={send} disabled={sending} style={{
+        padding: '7px 14px', borderRadius: 3, border: 'none',
+        background: 'linear-gradient(135deg,#f53d2d,#c42b1c)',
+        color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        opacity: sending ? .6 : 1, fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: '.04em',
+      }}>
+        {sending ? '⏳ Отправка…' : '📤 Отправить сейчас'}
+      </button>
+    </div>
+  )
+}
+
+function SmartRemindersButton({ showToast }) {
+  const [sending, setSending] = useState(false)
+
+  async function send() {
+    setSending(true)
+    try {
+      const res = await fetch('/api/smart-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: '' }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        showToast(`✅ Напоминания отправлены ${data.reminded} сотрудникам`)
+      } else {
+        showToast('Ошибка: ' + (data.error || 'неизвестно'), 'error')
+      }
+    } catch (e) { showToast('Ошибка: ' + e.message, 'error') }
+    setSending(false)
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #d1cfc9', borderRadius: 3, padding: '12px 16px', flex: 1, minWidth: 200 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f1c2c', marginBottom: 4 }}>🔔 Умные напоминания</div>
+      <div style={{ fontSize: 11, color: '#5a7080', marginBottom: 8 }}>
+        Напомнить сотрудникам кто не заходил 3+ дней
+        <div style={{ marginTop: 2, color: '#8fa0ae' }}>Авто: каждый день в 10:00</div>
+      </div>
+      <button onClick={send} disabled={sending} style={{
+        padding: '7px 14px', borderRadius: 3, border: 'none',
+        background: '#3b82f6', color: '#fff',
+        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+        opacity: sending ? .6 : 1, fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: '.04em',
+      }}>
+        {sending ? '⏳ Отправка…' : '📱 Напомнить сейчас'}
+      </button>
     </div>
   )
 }
