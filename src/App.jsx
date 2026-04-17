@@ -21,6 +21,13 @@ export default function App() {
       tg.ready()
       tg.expand()
 
+      // ── ОТКЛЮЧАЕМ СВОРАЧИВАНИЕ ПРИ СВАЙПЕ ВНИЗ ──
+      // Как BotFather — приложение не закрывается при свайпе вниз
+      if (tg.disableVerticalSwipes) tg.disableVerticalSwipes()
+      if (tg.isVerticalSwipesEnabled === true) tg.isVerticalSwipesEnabled = false
+      // Для старых версий TG SDK
+      if (tg.setVerticalSwipeEnabled) tg.setVerticalSwipeEnabled(false)
+
       // Tell Telegram we handle safe areas ourselves
       if (tg.setHeaderColor) tg.setHeaderColor('#0f1c2c')
       if (tg.setBackgroundColor) tg.setBackgroundColor('#e8e7e3')
