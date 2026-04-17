@@ -8,11 +8,13 @@ import AdminDepts from './AdminDepts.jsx'
 import AdminNews from './AdminNews.jsx'
 import AdminAchievements from './AdminAchievements.jsx'
 import DeadlineCalendar from './DeadlineCalendar.jsx'
+import AdminBell from './AdminBell.jsx'
 
 export default function AdminLayout({ adminUser, onLogout }) {
   const [page, setPage] = useState('dashboard')
   const [requestBadge, setRequestBadge] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768)
+  const [bellRequestId, setBellRequestId] = useState(null)
   const [toast, setToast] = useState(null)
 
   const role = adminUser?.role || 'staff'
@@ -164,6 +166,11 @@ export default function AdminLayout({ adminUser, onLogout }) {
         </div>
       </div>
 
+      {/* Bell request detail modal */}
+      {bellRequestId && (
+        <BellRequestDetail requestId={bellRequestId} onClose={() => setBellRequestId(null)} />
+      )}
+
       {/* Toast */}
       {toast && (
         <div style={{
@@ -176,6 +183,82 @@ export default function AdminLayout({ adminUser, onLogout }) {
           maxWidth:320,
         }}>{toast.msg}</div>
       )}
+    </div>
+  )
+}
+
+// ── BELL REQUEST DETAIL ───────────────────────────────────────────────────────
+function BellRequestDetail({ requestId, onClose }) {
+  const [req, setReq] = React.useState(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('requests').select('*').eq('id', requestId).single()
+      setReq(data)
+      setLoading(false)
+    }
+    load()
+  }, [requestId])
+
+  if (!req && !loading) return null
+
+  const parseJson = (val, def) => { if (!val) return def; if (Array.isArray(val)) return val; try { return JSON.parse(val) } catch { return def } }
+  const STATUS = { new:{label:'Новая',color:'#6b7280'}, work:{label:'В работе',color:'#3b82f6'}, approved:{label:'Принята',color:'#22c55e'}, rejected:{label:'Отклонена',color:'#ef4444'}, completed:{label:'Выполнена',color:'#8b5cf6'} }
+  const padId = (id) => '#' + String(id).padStart(5,'0')
+  const fmtD = (d) => { try { return new Date(d).toLocaleString('ru',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) } catch { return '—' } }
+  const st = req ? (STATUS[req.status] || { label: req?.status, color: '#6b7280' }) : null
+  const media = req ? parseJson(req.media, []) : []
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div className="fade-in" style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 520, maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.4)', border: '1px solid #d1cfc9' }}>
+        <div style={{ padding: '12px 16px', background: '#0f1c2c', borderBottom: '2px solid #f53d2d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: '#e8e7e3', fontFamily: "'Barlow Condensed',sans-serif" }}>
+            {req ? `#${String(req.id).padStart(5,'0')} — ДЕТАЛИ` : 'ЗАГРУЗКА…'}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(232,231,227,.7)', fontSize: 20, cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: 20 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#8fa0ae' }}>Загрузка…</div>
+          ) : req ? (
+            <>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: req.type==='risk'?'#fff7ed':'#ecfdf5', color: req.type==='risk'?'#c2410c':'#059669' }}>
+                  {req.type==='risk' ? `⚠️ Риск${req.risk_urgency?` L${req.risk_urgency}`:''}` : '💡 Идея'}
+                </span>
+                {st && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: `${st.color}18`, color: st.color }}>{st.label}</span>}
+              </div>
+              <div style={{ fontSize: 14, color: '#0f1c2c', lineHeight: 1.7, marginBottom: 14, background: '#f2f1ee', padding: 12, borderRadius: 8 }}>
+                {req.description}
+              </div>
+              <div style={{ fontSize: 12, color: '#5a7080', marginBottom: 12 }}>
+                👤 {req.anonymous ? 'Аноним' : req.author} · 📍 {req.location||'—'} · 🕐 {fmtD(req.date||req.created_at)}
+              </div>
+              {req.assigned_to && <div style={{ fontSize: 12, color: '#3b82f6', marginBottom: 8 }}>👷 {req.assigned_to}</div>}
+              {req.deadline && <div style={{ fontSize: 12, color: new Date(req.deadline)<new Date()?'#dc2626':'#5a7080', marginBottom: 12, fontWeight: 700 }}>⏰ {fmtD(req.deadline)}</div>}
+              {req.admin_comment && (
+                <div style={{ background: 'rgba(245,61,45,.05)', border: '1px solid rgba(245,61,45,.2)', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#f53d2d', marginBottom: 4 }}>💬 Комментарий администратора</div>
+                  <div style={{ fontSize: 13, color: '#2a3f52' }}>{req.admin_comment}</div>
+                </div>
+              )}
+              {media.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {media.map((m,i) => (
+                    <img key={i} src={m} onClick={() => window.open(m,'_blank')}
+                      style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #d1cfc9', cursor: 'pointer' }} loading="lazy" />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: 40, color: '#8fa0ae' }}>Заявка не найдена</div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
