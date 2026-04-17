@@ -3,6 +3,7 @@ import { supabase, pad, fmtDate, STATUS_MAP } from '../../lib/supabase.js'
 import { can } from '../../lib/permissions.js'
 import { notifyUser } from '../../lib/telegram.js'
 import LoadingDots from '../common/LoadingDots.jsx'
+import { Pagination } from './AdminUsers.jsx'
 
 export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
   const [requests, setRequests] = useState([])
@@ -145,7 +146,6 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
     setExporting(false)
   }
 
-  // Reset to page 1 when filters change - handled via useEffect
   const filtered = requests.filter(r => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
     if (typeFilter !== 'all' && r.type !== typeFilter) return false
@@ -190,11 +190,10 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
           )}
         </div>
 
-        {/* Export buttons */}
+        {/* Export buttons + count */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#5a7080' }}>Найдено: <strong>{filtered.length}</strong></span>
           {can(role, 'export_data') && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <>
               <button onClick={exportExcel} disabled={exporting || !filtered.length}
                 style={{ padding: '7px 14px', borderRadius: 3, border: 'none', background: '#16a34a', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Barlow Condensed',sans-serif" }}>
                 📊 Excel
@@ -203,32 +202,13 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
                 style={{ padding: '7px 14px', borderRadius: 3, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Barlow Condensed',sans-serif" }}>
                 📄 PDF
               </button>
-            </div>
+            </>
           )}
         </div>
 
         {/* Table with new columns */}
         <div style={{ flex: 1, overflowY: 'auto', background: '#fff', borderRadius: 3, border: '1px solid #d1cfc9', overflow: 'hidden' }}>
-          {/* Pagination info */}
-        {!loading && filtered.length > 0 && (
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-            <span style={{ fontSize:12, color:'#5a7080' }}>
-              Найдено: <strong>{filtered.length}</strong> · Стр {page}/{Math.ceil(filtered.length/REQ_PAGE_SIZE)||1}
-            </span>
-            <div style={{ display:'flex', gap:4 }}>
-              <PaginationBtn onClick={()=>setPage(1)} disabled={page===1}>«</PaginationBtn>
-              <PaginationBtn onClick={()=>setPage(p=>p-1)} disabled={page===1}>‹</PaginationBtn>
-              {Array.from({length:Math.min(5,Math.ceil(filtered.length/REQ_PAGE_SIZE))},(_,i)=>{
-                let p=page-2+i; if(p<1)p=i+1; const total=Math.ceil(filtered.length/REQ_PAGE_SIZE); if(p>total)p=total-(4-i); if(p<1||p>total)return null
-                return <PaginationBtn key={p} onClick={()=>setPage(p)} active={p===page}>{p}</PaginationBtn>
-              })}
-              <PaginationBtn onClick={()=>setPage(p=>p+1)} disabled={page===Math.ceil(filtered.length/REQ_PAGE_SIZE)||!filtered.length}>›</PaginationBtn>
-              <PaginationBtn onClick={()=>setPage(Math.ceil(filtered.length/REQ_PAGE_SIZE))} disabled={page===Math.ceil(filtered.length/REQ_PAGE_SIZE)||!filtered.length}>»</PaginationBtn>
-            </div>
-          </div>
-        )}
-
-        {loading ? <LoadingDots /> : filtered.length === 0 ? (
+          {loading ? <LoadingDots /> : filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8fa0ae' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div><div>Заявок не найдено</div>
             </div>
@@ -303,6 +283,7 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
             </table>
           )}
         </div>
+        <Pagination page={page} total={filtered.length} pageSize={REQ_PAGE_SIZE} onChange={setPage} />
       </div>
 
       {/* RIGHT: Detail panel */}
