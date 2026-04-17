@@ -7,6 +7,7 @@ import AdminUsers from './AdminUsers.jsx'
 import AdminDepts from './AdminDepts.jsx'
 import AdminNews from './AdminNews.jsx'
 import AdminAchievements from './AdminAchievements.jsx'
+import DeadlineCalendar from './DeadlineCalendar.jsx'
 
 export default function AdminLayout({ adminUser, onLogout }) {
   const [page, setPage] = useState('dashboard')
@@ -24,6 +25,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
     { id: 'depts',        label: 'Участки',       icon: '🏭', permission: 'manage_departments' },
     { id: 'news',         label: 'Новости',       icon: '📰', permission: 'publish_news' },
     { id: 'achievements', label: 'Достижения',    icon: '🏅', permission: 'manage_achievements' },
+  { id: 'calendar',     label: 'Дедлайны',      icon: '📅', permission: null },
   ]
 
   const pages = ALL_PAGES.filter(p => !p.permission || can(role, p.permission))
@@ -145,7 +147,8 @@ export default function AdminLayout({ adminUser, onLogout }) {
           {page === 'users'        && can(role,'manage_users')        && <AdminUsers adminUser={adminUser} showToast={showToast} />}
           {page === 'depts'        && can(role,'manage_departments')  && <AdminDepts showToast={showToast} />}
           {page === 'news'         && can(role,'publish_news')        && <AdminNews adminUser={adminUser} showToast={showToast} />}
-          {page === 'achievements' && can(role,'manage_achievements') && <AdminAchievements showToast={showToast} />}
+          {page === 'achievements' && can(role,'manage_achievements') && <AdminAchievements showToast={showToast} /> }
+          {page === 'calendar' && <DeadlineCalendar showToast={showToast} />}
 
           {/* Access denied */}
           {page !== 'dashboard' && page !== 'requests' && !pages.find(p => p.id === page) && (
