@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase, lvlInfo, LEVELS, fmtDate, avatarColor, initials } from '../../lib/supabase.js'
 import LoadingDots from '../common/LoadingDots.jsx'
+import ShopSection from './ShopSection.jsx'
 
 export default function ProfileSection({ user, updateUser, isDark, toggleDark, onLogout, showToast, clearProfileBadge, onShowDailyTasks, dailyDone, isActive }) {
   const [leaderboard, setLeaderboard] = useState([])
@@ -8,6 +9,7 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
   const [myPosts, setMyPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('stats')
+  const [showShop, setShowShop] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
 
   useEffect(() => { clearProfileBadge(); loadAll() }, [])
@@ -120,7 +122,7 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
 
       {/* Tabs */}
       <div className="no-scrollbar" style={{ display:'flex', overflowX:'auto', padding:'12px 12px 0', gap:6 }}>
-        {[['stats','⚙️ Профиль'],['leaderboard','🏆 Рейтинг'],['achievements','🏅 Достижения'],['training','🎓 Тренинг']].map(([t,l]) => (
+        {[['stats','⚙️ Профиль'],['leaderboard','🏆 Рейтинг'],['achievements','🏅 Достижения'],['training','🎓 Тренинг'],['shop','🏪 Магазин']].map(([t,l]) => (
           <button key={t} onClick={() => setTab(t)} style={{
             flexShrink:0, padding:'7px 14px', borderRadius:20,
             border:`1.5px solid ${tab===t?'var(--red)':'var(--bd)'}`,
@@ -138,6 +140,7 @@ export default function ProfileSection({ user, updateUser, isDark, toggleDark, o
             {tab==='leaderboard' && <LeaderboardTab leaderboard={leaderboard} user={user} />}
             {tab==='achievements' && <AchievementsTab achievements={achievements} user={user} myPosts={myPosts} />}
             {tab==='training' && <TrainingTab user={user} onComplete={handleTrainingComplete} />}
+            {tab==='shop' && <ShopSection user={user} updateUser={updateUser} showToast={showToast} />}
           </>
         )}
       </div>
