@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase, fmtDate, STATUS_MAP } from '../../lib/supabase.js'
 import LoadingDots from '../common/LoadingDots.jsx'
 
-export default function AdminDashboard({ showToast, onPageChange }) {
+export default function AdminDashboard({ showToast, onPageChange, adminUser }) {
   const [stats, setStats] = useState({ total: 0, new: 0, ideas: 0, risks: 0, users: 0, completed: 0, inWork: 0 })
   const [recent, setRecent] = useState([])
   const [byDept, setByDept] = useState([])
@@ -141,6 +141,7 @@ export default function AdminDashboard({ showToast, onPageChange }) {
         ))}
       </div>
 
+      <DeadlineAlerts adminUser={adminUser} showToast={showToast} />
       <Level1Alert />
 
       {/* Recent table */}
