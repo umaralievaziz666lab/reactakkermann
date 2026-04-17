@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 import BottomNav from './common/BottomNav.jsx'
 import FeedSection from './feed/FeedSection.jsx'
@@ -22,7 +22,6 @@ export default function MainApp({ user, updateUser, isDark, toggleDark, onLogout
     if (!user) return
     loadNotifBadge()
 
-    // Показываем ежедневные задачи один раз в день
     const todayKey = `daily_shown_${user.empId}_${new Date().toDateString()}`
     if (!localStorage.getItem(todayKey)) {
       setTimeout(() => {
@@ -31,10 +30,7 @@ export default function MainApp({ user, updateUser, isDark, toggleDark, onLogout
       }, 2000)
     }
 
-    // Проверяем выполнены ли задачи
-    const doneKey = `daily_${user.empId}_${new Date().toDateString()}`
-    const done = JSON.parse(localStorage.getItem(doneKey) || '[]')
-    setDailyDone(done.length >= 5)
+    checkDailyDone()
 
     const channel = supabase.channel('rt-notifs')
       .on('postgres_changes', {
@@ -61,24 +57,42 @@ export default function MainApp({ user, updateUser, isDark, toggleDark, onLogout
   }
 
   function checkDailyDone() {
-    const doneKey = `daily_${user.empId}_${new Date().toDateString()}`
+    const doneKey = `daily_${user?.empId}_${new Date().toDateString()}`
     const done = JSON.parse(localStorage.getItem(doneKey) || '[]')
     setDailyDone(done.length >= 5)
   }
 
+  // ВАЖНО: используем display:none вместо размонтирования
+  // Это предотвращает белый экран при переключении разделов
+  const sectionStyle = (name) => ({
+    display: section === name ? 'block' : 'none',
+    height: '100%',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
+  })
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
-        {section === 'feed' && (
+
+      {/* Все секции рендерятся сразу но скрыты через display:none */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div style={sectionStyle('feed')}>
           <FeedSection user={user} showToast={showToast} updateUser={updateUser} />
-        )}
-        {section === 'notif' && (
-          <NotifSection user={user} onBadgeUpdate={setNotifBadge} showToast={showToast} goToFeed={() => setSection('feed')} />
-        )}
-        {section === 'news' && (
-          <NewsSection user={user} showToast={showToast} />
-        )}
-        {section === 'profile' && (
+        </div>
+        <div style={sectionStyle('notif')}>
+          <NotifSection
+            user={user}
+            onBadgeUpdate={setNotifBadge}
+            showToast={showToast}
+            goToFeed={() => setSection('feed')}
+            isActive={section === 'notif'}
+          />
+        </div>
+        <div style={sectionStyle('news')}>
+          <NewsSection user={user} showToast={showToast} isActive={section === 'news'} />
+        </div>
+        <div style={sectionStyle('profile')}>
           <ProfileSection
             user={user} updateUser={updateUser}
             isDark={isDark} toggleDark={toggleDark}
@@ -86,21 +100,26 @@ export default function MainApp({ user, updateUser, isDark, toggleDark, onLogout
             clearProfileBadge={() => setProfileBadge(false)}
             onShowDailyTasks={() => setShowDailyTasks(true)}
             dailyDone={dailyDone}
+            isActive={section === 'profile'}
           />
-        )}
+        </div>
       </div>
 
       <BottomNav
-        section={section} onSection={setSection}
+        section={section}
+        onSection={setSection}
         onCreate={() => setShowCreate(true)}
         notifBadge={notifBadge}
         profileBadge={profileBadge}
       />
 
       {showCreate && (
-        <CreateModal user={user} onClose={() => setShowCreate(false)}
+        <CreateModal
+          user={user}
+          onClose={() => setShowCreate(false)}
           onSuccess={(msg) => { showToast(msg, 'success'); setShowCreate(false) }}
-          showToast={showToast} />
+          showToast={showToast}
+        />
       )}
 
       {showDailyTasks && (
