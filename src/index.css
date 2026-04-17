@@ -268,3 +268,22 @@ body {
 /* ── SAFE AREAS (iPhone notch etc) ───────────────────────────────────────── */
 .safe-top    { padding-top: env(safe-area-inset-top, 0px); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ── TELEGRAM MINI APP + SAFE AREAS ─────────────────────────────────────── */
+/* Убираем конфликт с кнопками Telegram WebApp */
+#root {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Dynamic Island / notch fix */
+.tg-safe-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 12px);
+}
+
+/* Нижний safe area для iPhone */
+.tg-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+}
+
+/* Скрываем стандартные кнопки Telegram поверх нашего UI */
+.tgme_widget_message_bubble { z-index: 0 !important; }
