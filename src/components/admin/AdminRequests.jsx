@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase, pad, fmtDate, STATUS_MAP } from '../../lib/supabase.js'
 import { can } from '../../lib/permissions.js'
 import { notifyUser } from '../../lib/telegram.js'
@@ -19,6 +19,8 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
   const [exporting, setExporting] = useState(false)
 
   const role = adminUser?.role || 'staff'
+  const REQ_PAGE_SIZE = 15
+  const [page, setPage] = useState(1)
 
   useEffect(() => { loadAll() }, [])
 
@@ -143,6 +145,7 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
     setExporting(false)
   }
 
+  // Reset to page 1 when filters change - handled via useEffect
   const filtered = requests.filter(r => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
     if (typeFilter !== 'all' && r.type !== typeFilter) return false
@@ -206,7 +209,26 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
 
         {/* Table with new columns */}
         <div style={{ flex: 1, overflowY: 'auto', background: '#fff', borderRadius: 3, border: '1px solid #d1cfc9', overflow: 'hidden' }}>
-          {loading ? <LoadingDots /> : filtered.length === 0 ? (
+          {/* Pagination info */}
+        {!loading && filtered.length > 0 && (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+            <span style={{ fontSize:12, color:'#5a7080' }}>
+              Найдено: <strong>{filtered.length}</strong> · Стр {page}/{Math.ceil(filtered.length/REQ_PAGE_SIZE)||1}
+            </span>
+            <div style={{ display:'flex', gap:4 }}>
+              <PaginationBtn onClick={()=>setPage(1)} disabled={page===1}>«</PaginationBtn>
+              <PaginationBtn onClick={()=>setPage(p=>p-1)} disabled={page===1}>‹</PaginationBtn>
+              {Array.from({length:Math.min(5,Math.ceil(filtered.length/REQ_PAGE_SIZE))},(_,i)=>{
+                let p=page-2+i; if(p<1)p=i+1; const total=Math.ceil(filtered.length/REQ_PAGE_SIZE); if(p>total)p=total-(4-i); if(p<1||p>total)return null
+                return <PaginationBtn key={p} onClick={()=>setPage(p)} active={p===page}>{p}</PaginationBtn>
+              })}
+              <PaginationBtn onClick={()=>setPage(p=>p+1)} disabled={page===Math.ceil(filtered.length/REQ_PAGE_SIZE)||!filtered.length}>›</PaginationBtn>
+              <PaginationBtn onClick={()=>setPage(Math.ceil(filtered.length/REQ_PAGE_SIZE))} disabled={page===Math.ceil(filtered.length/REQ_PAGE_SIZE)||!filtered.length}>»</PaginationBtn>
+            </div>
+          </div>
+        )}
+
+        {loading ? <LoadingDots /> : filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8fa0ae' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div><div>Заявок не найдено</div>
             </div>
@@ -220,7 +242,7 @@ export default function AdminRequests({ adminUser, showToast, onBadgeUpdate }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(r => {
+                {filtered.slice((page-1)*REQ_PAGE_SIZE, page*REQ_PAGE_SIZE).map(r => {
                   const st = STATUS_MAP[r.status] || STATUS_MAP.new
                   const isSel = selected?.id === r.id
                   const mediaArr = parseJson(r.media, [])
@@ -405,6 +427,19 @@ function parseJson(val, def) {
   if (Array.isArray(val)) return val
   try { return JSON.parse(val) } catch { return def }
 }
+
+function PaginationBtn({ children, onClick, disabled, active }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      minWidth: 32, height: 32, padding: '0 8px',
+      borderRadius: 6, border: `1px solid ${active ? '#f53d2d' : '#d1cfc9'}`,
+      background: active ? '#f53d2d' : disabled ? '#f9f9f9' : '#fff',
+      color: active ? '#fff' : disabled ? '#d1cfc9' : '#2a3f52',
+      fontSize: 12, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
+    }}>{children}</button>
+  )
+}
+
 
 const thStyle = { padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#e8e7e3', textTransform: 'uppercase', letterSpacing: '.05em', background: '#0f1c2c', borderBottom: '2px solid #f53d2d', whiteSpace: 'nowrap', fontFamily: "'Barlow Condensed',sans-serif" }
 const tdStyle = { padding: '8px 10px', fontSize: 12, color: '#2a3f52', borderBottom: '1px solid #f2f1ee', verticalAlign: 'middle' }
