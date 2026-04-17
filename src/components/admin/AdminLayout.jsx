@@ -14,6 +14,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
   const [page, setPage] = useState('dashboard')
   const [requestBadge, setRequestBadge] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [bellRequestId, setBellRequestId] = useState(null)
   const [toast, setToast] = useState(null)
 
@@ -76,12 +77,12 @@ export default function AdminLayout({ adminUser, onLogout }) {
 
             {/* Role badge */}
             <div style={{ padding:'10px 16px', borderBottom:'1px solid rgba(255,255,255,.06)' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:6, background:'rgba(255,255,255,.04)', border:`1px solid ${rColor}33` }}>
-                <span style={{ fontSize:18 }}>{roleIcon(role)}</span>
-                <div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent: sidebarCollapsed?'center':'flex-start', gap:8, padding:'8px 10px', borderRadius:6, background:'rgba(255,255,255,.04)', border:`1px solid ${rColor}33` }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{roleIcon(role)}</span>
+                {!sidebarCollapsed && <div>
                   <div style={{ fontSize:12, fontWeight:700, color:'#e8e7e3' }}>{adminUser.name}</div>
                   <div style={{ fontSize:10, fontWeight:700, color:rColor, textTransform:'uppercase', letterSpacing:'.04em' }}>{ROLES[role]||role}</div>
-                </div>
+                </div>}
               </div>
             </div>
 
@@ -110,8 +111,8 @@ export default function AdminLayout({ adminUser, onLogout }) {
 
             {/* Bottom */}
             <div style={{ padding:'10px 8px', borderTop:'1px solid rgba(255,255,255,.08)' }}>
-              <button onClick={onLogout} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:3, background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)', color:'#fca5a5', fontSize:12, fontWeight:700, cursor:'pointer', width:'100%', fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:'.04em' }}>
-                🚪 ВЫЙТИ
+              <button onClick={onLogout} title={sidebarCollapsed?'Выйти':''} style={{ display:'flex', alignItems:'center', justifyContent: sidebarCollapsed?'center':'flex-start', gap:8, padding:'8px 12px', borderRadius:3, background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)', color:'#fca5a5', fontSize:12, fontWeight:700, cursor:'pointer', width:'100%', fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:'.04em' }}>
+                <span>🚪</span>{!sidebarCollapsed && ' ВЫЙТИ'}
               </button>
             </div>
           </aside>
@@ -119,7 +120,7 @@ export default function AdminLayout({ adminUser, onLogout }) {
       )}
 
       {/* Main */}
-      <div style={{ marginLeft: !isMobile ? 230 : 0, flex:1, minHeight:'100vh', transition:'margin .25s' }}>
+      <div style={{ marginLeft: !isMobile ? (sidebarCollapsed ? 60 : 230) : 0, flex:1, minHeight:'100vh', transition:'margin .25s' }}>
         {/* Top bar */}
         <div style={{ background:'#0f1c2c', borderBottom:'3px solid #f53d2d', padding:'0 22px', height:52, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:40 }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
