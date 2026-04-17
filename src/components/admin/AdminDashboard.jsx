@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase, fmtDate, STATUS_MAP } from '../../lib/supabase.js'
 import LoadingDots from '../common/LoadingDots.jsx'
+import DeadlineAlerts from './DeadlineAlerts.jsx'
 
 export default function AdminDashboard({ showToast, onPageChange, adminUser }) {
   const [stats, setStats] = useState({ total: 0, new: 0, ideas: 0, risks: 0, users: 0, completed: 0, inWork: 0 })
