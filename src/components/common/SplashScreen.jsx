@@ -1,31 +1,79 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 
 export default function SplashScreen() {
+  const [phase, setPhase] = useState(0)
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 200)
+    const t2 = setTimeout(() => setPhase(2), 800)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [])
+
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'var(--bg)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 200,
+      background: 'var(--navy)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: 0,
     }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+      {/* Декоративная сетка */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'linear-gradient(rgba(232,50,31,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(232,50,31,.04) 1px, transparent 1px)',
+        backgroundSize: '48px 48px',
+      }} />
+
+      {/* Красная полоса */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, bottom: 0,
+        width: 4,
+        background: 'linear-gradient(180deg, transparent, var(--red), transparent)',
+        opacity: phase >= 1 ? 1 : 0,
+        transition: 'opacity .6s',
+      }} />
+
+      <div style={{
+        textAlign: 'center', position: 'relative', zIndex: 1,
+        transform: phase >= 1 ? 'translateY(0)' : 'translateY(20px)',
+        opacity: phase >= 1 ? 1 : 0,
+        transition: 'all .6s cubic-bezier(.32,.72,0,1)',
+      }}>
+        {/* Logo */}
         <div style={{
-          width: 72, height: 72, borderRadius: 8,
-          background: 'var(--red)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 36,
-          boxShadow: '0 8px 24px rgba(245,61,45,.5)',
-        }}>🚀</div>
-        <div style={{
-          fontSize: 18, fontWeight: 800, letterSpacing: '.12em',
-          fontFamily: "'Barlow Condensed', sans-serif",
-          textTransform: 'uppercase', color: 'var(--t1)',
-        }}>AKKERMANN PULSE</div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          <div className="anim-bounce" style={{ width: 8, height: 8, borderRadius: '50%', background: '#f53d2d' }} />
-          <div className="anim-bounce" style={{ width: 8, height: 8, borderRadius: '50%', background: '#c42b1c', animationDelay: '.15s' }} />
-          <div className="anim-bounce" style={{ width: 8, height: 8, borderRadius: '50%', background: '#f53d2d', animationDelay: '.3s' }} />
+          fontSize: 58, fontFamily: 'var(--font-display)',
+          letterSpacing: '.18em', color: '#EEEAE0',
+          lineHeight: 1, marginBottom: 2,
+        }}>
+          AKKERMANN
         </div>
+        <div style={{
+          fontSize: 18, fontFamily: 'var(--font-display)',
+          letterSpacing: '.55em', color: 'var(--red)',
+          marginBottom: 32,
+        }}>
+          PULSE
+        </div>
+
+        {/* Loading dots */}
+        <div style={{ display: 'flex', gap: 7, justifyContent: 'center', opacity: phase >= 2 ? 1 : 0, transition: 'opacity .4s .2s' }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--red)',
+              animation: 'dotBounce 1.2s ease infinite',
+              animationDelay: `${i * .15}s`,
+            }} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{
+        position: 'absolute', bottom: 28,
+        fontSize: 11, fontFamily: 'var(--font-display)',
+        letterSpacing: '.14em', color: 'rgba(255,255,255,.18)',
+        opacity: phase >= 2 ? 1 : 0, transition: 'opacity .4s .4s',
+      }}>
+        SISTEMA BEZOPASNOSTI
       </div>
     </div>
   )
